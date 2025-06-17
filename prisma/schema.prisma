@@ -1,0 +1,40 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  username           String    @unique
+  password           String
+  fullName           String?
+  securityId         String    @unique
+  refreshToken       String?
+  failedLoginAttempts Int      @default(0)
+  accountLocked      Boolean   @default(false)
+  lockExpiresAt      DateTime?
+  lastLogin          DateTime  @default(now())
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  certificates       Certificate[]
+
+  @@map("users")
+}
+
+model Certificate {
+  id        String   @id @default(uuid())
+  name      String
+  issueDate DateTime
+  imageUrl  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("certificates")
+}

@@ -58,8 +58,9 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           script: |
+            echo "Connecting to host: ${{ secrets.HOST }}"
             cd /home/ubuntu/apps/SmartCertify-backend
             git pull origin main
             pnpm install --frozen-lockfile
             pnpm build
-            pm2 restart smartify
+            pm2 restart SmartCertify

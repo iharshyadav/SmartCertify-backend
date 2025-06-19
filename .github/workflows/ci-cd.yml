@@ -61,6 +61,7 @@ jobs:
             echo "Connecting to host: ${{ secrets.HOST }}"
             cd /home/ubuntu/apps/SmartCertify-backend
             git pull origin main
+            echo "${{ secrets.PROD_ENV_FILE }}" > .env
             pnpm install --frozen-lockfile
             pnpm prisma generate
             pnpm build

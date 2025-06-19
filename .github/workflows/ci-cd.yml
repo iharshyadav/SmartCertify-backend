@@ -64,4 +64,10 @@ jobs:
             pnpm install --frozen-lockfile
             pnpm prisma generate
             pnpm build
-            pm2 restart SmartCertify
+            if pm2 list | grep -q "SmartCertify"; then
+              echo "Restarting existing PM2 process: SmartCertify"
+              pm2 restart SmartCertify
+            else
+              echo "Starting new PM2 process: SmartCertify"
+              pm2 start dist/server.js --name SmartCertify
+            fi

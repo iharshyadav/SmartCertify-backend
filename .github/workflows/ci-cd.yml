@@ -62,5 +62,6 @@ jobs:
             cd /home/ubuntu/apps/SmartCertify-backend
             git pull origin main
             pnpm install --frozen-lockfile
+            pnpm prisma generate
             pnpm build
             pm2 restart SmartCertify

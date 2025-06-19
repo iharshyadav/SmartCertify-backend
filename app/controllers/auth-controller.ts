@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { body, validationResult } from 'express-validator';
 import prisma from "../databases/prismadb"
+import {OAuth2Client} from "google-auth-library"
 
 class AuthController {
     public validateSignup = [
@@ -77,13 +78,13 @@ class AuthController {
                     email: newUser.email,
                     securityId: securityId
                 },
-                process.env.JWT_SECRET || 'default_jwt_secret',
+                process.env.JWT_SECRET!,
                 { expiresIn: '1h' }
             );
             
             const refreshToken = jwt.sign(
                 { id: newUser.id, securityId },
-                process.env.REFRESH_TOKEN_SECRET || 'default_refresh_secret',
+                process.env.REFRESH_TOKEN_SECRET!,
                 { expiresIn: '7d' }
             );
             
@@ -226,6 +227,116 @@ class AuthController {
             });
         } catch (error) {
             console.error('Signin error:', error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    }
+
+    public async googleAuth(req: Request, res: Response): Promise<void> {
+        try {
+            const { idToken } = req.body;
+            
+            if (!idToken) {
+                res.status(400).json({ message: 'Google ID token is required' });
+                return;
+            }
+
+            const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+            
+            const ticket = await client.verifyIdToken({
+                idToken,
+                audience: process.env.GOOGLE_CLIENT_ID
+            });
+            
+            const payload = ticket.getPayload();
+
+            if (!payload) {
+                res.status(400).json({ message: 'Invalid Google token payload' });
+                return;
+            }
+            const { email, name, sub: googleId, picture } = payload;
+            
+            let user = await prisma.user.findUnique({
+                where: { email }
+            });
+            
+            const securityId = uuidv4();
+            
+            if (!user) {
+                const randomPassword = Math.random().toString(36).slice(-10);
+                const hashedPassword = await bcrypt.hash(randomPassword, 12);
+
+                  if (!email) {
+                    res
+                      .status(400)
+                      .json({
+                        message: "Email is required for Google authentication",
+                      });
+                    return;
+                  }
+                
+                const suggestedUsername =email.split('@')[0];
+                const existingUsername = await prisma.user.findUnique({
+                    where: { username: suggestedUsername }
+                });
+                
+                const username = existingUsername 
+                    ? `${suggestedUsername}${Math.random().toString(36).slice(-4)}`
+                    : suggestedUsername;
+                
+                user = await prisma.user.create({
+                    data: {
+                        email,
+                        username,
+                        password: hashedPassword,
+                        fullName: name || "",
+                        avatar : picture,
+                        securityId,
+                        failedLoginAttempts: 0,
+                        lastLogin: new Date(),
+                    }
+                });
+            } else {
+                user = await prisma.user.update({
+                    where: { email },
+                    data: {
+                        securityId,
+                        lastLogin: new Date(),
+                        failedLoginAttempts: 0,
+                        accountLocked: false
+                    }
+                });
+            }
+            
+            const token = jwt.sign(
+                { id: user.id, email: user.email, securityId },
+                process.env.JWT_SECRET!,
+                { expiresIn: '1h' }
+            );
+            
+            const refreshToken = jwt.sign(
+                { id: user.id, securityId },
+                process.env.REFRESH_TOKEN_SECRET!,
+                { expiresIn: '7d' }
+            );
+            
+            const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+            await prisma.user.update({
+                where: { email },
+                data: { refreshToken: hashedRefreshToken }
+            });
+            
+            res.status(200).json({
+                message: 'Google authentication successful',
+                token,
+                refreshToken,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    username: user.username
+                }
+            });
+        } catch (error) {
+            console.error('Google auth error:', error);
             res.status(500).json({ message: 'Internal server error' });
         }
     }

@@ -1,5 +1,5 @@
 import express, { Request, Response, NextFunction } from 'express';
-import userRouter from "./routes/auth-route"
+import userRouter from "./routes/user-route"
 // Create Express application
 const app = express();
 const port = process.env.PORT || 3000;

@@ -14,6 +14,8 @@ model User {
   password           String
   fullName           String?
   securityId         String    @unique
+  admin              Boolean   @default(false)
+  avatar             String?
   refreshToken       String?
   failedLoginAttempts Int      @default(0)
   accountLocked      Boolean   @default(false)

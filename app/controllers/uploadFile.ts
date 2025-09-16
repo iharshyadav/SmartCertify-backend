@@ -14,7 +14,6 @@ class UploadFilesToS3 {
       }});
 
       const file = req.file;
-    //   console.log(file);
       if (!file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
@@ -37,7 +36,6 @@ class UploadFilesToS3 {
         expiresIn : 60
     }
     );
-    //   console.log(url);
       const uploadResult = await axios.put(url , file.buffer , {
          headers: {
         "Content-Type": file.mimetype,
@@ -61,7 +59,6 @@ class UploadFilesToS3 {
         fileUrl
       });
     } catch (err: any) {
-    //   console.error("Error uploading file:", err);
       return res.status(500).json({ error: "Internal server error", details: err.message });
     }
   }

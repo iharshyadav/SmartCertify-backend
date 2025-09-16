@@ -6,6 +6,31 @@ import { body, validationResult } from 'express-validator';
 import prisma from "../databases/prismadb"
 import {OAuth2Client} from "google-auth-library"
 
+enum Role {
+    STUDENT = "STUDENT",
+    INSTITUTION = "INSTITUTION"
+}
+
+interface USER {
+    id?: string;
+    email?: string;
+    username?: string;
+    password?: string;
+    fullName?: string | null;
+    securityId?: string;
+    admin?: boolean;
+    avatar?: string | null;
+    usertype?: Role | null;
+    institutionname?: string | null;
+    refreshToken?: string | null;
+    failedLoginAttempts?: number;
+    accountLocked?: boolean;
+    lockExpiresAt?: Date | null;
+    lastLogin?: Date | null;
+    createdAt?: Date;
+    updatedAt?: Date;
+    certificates?: any[];
+}
 class AuthController {
     public validateSignup = [
         body('email').isEmail().normalizeEmail().withMessage('Invalid email address'),
@@ -31,7 +56,7 @@ class AuthController {
                 return;
             }
 
-            const { email, password, username, fullName } = req.body;
+            const { email, password, username, firstname , lastname , usertype , institutionname} = req.body;
             
             const existingUser = await prisma.user.findUnique({
                 where : {
@@ -53,24 +78,51 @@ class AuthController {
                 res.status(409).json({ message: 'Username already taken' });
                 return;
             }
-            
+
+            if(usertype == 'INSTITUTION' && institutionname == undefined){
+                res.status(409).json({
+                    message: "Please fill the institution name",
+                })
+
+                return;
+            }
+            const fullName = firstname + ' ' +  lastname;
             const saltRounds = 12;
             const salt = await bcrypt.genSalt(saltRounds);
             const hashedPassword = await bcrypt.hash(password, salt);
             
             const securityId = uuidv4();
 
-            const newUser = await prisma.user.create({
-              data: {
-                email,
-                username,
-                password: hashedPassword,
-                fullName: fullName || "",
-                securityId,
-                failedLoginAttempts: 0,
-                lastLogin: new Date(),
-              },
-            });
+            let newUser: USER = {};
+
+            if (usertype == "INSTITUTION") {
+              newUser = (await prisma.user.create({
+                data: {
+                  email,
+                  username,
+                  password: hashedPassword,
+                  fullName: fullName,
+                  securityId,
+                  failedLoginAttempts: 0,
+                  institutionname,
+                  usertype: Role.INSTITUTION,
+                  lastLogin: new Date(),
+                },
+              })) as USER;
+            } else {
+              newUser = (await prisma.user.create({
+                data: {
+                  email,
+                  username,
+                  password: hashedPassword,
+                  fullName: fullName,
+                  securityId,
+                  failedLoginAttempts: 0,
+                  usertype: Role.STUDENT,
+                  lastLogin: new Date(),
+                },
+              })) as USER;
+            }
             
             const token = jwt.sign(
                 { 
@@ -199,13 +251,13 @@ class AuthController {
                     email: user.email,
                     securityId
                 },
-                process.env.JWT_SECRET || 'default_jwt_secret',
+                process.env.JWT_SECRET!,
                 { expiresIn: '1h' }
             );
             
             const refreshToken = jwt.sign(
                 { id: user.id, securityId },
-                process.env.REFRESH_TOKEN_SECRET || 'default_refresh_secret',
+                process.env.REFRESH_TOKEN_SECRET!,
                 { expiresIn: '7d' }
             );
             

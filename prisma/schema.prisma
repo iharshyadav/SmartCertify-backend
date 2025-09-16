@@ -7,6 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  INSTITUTION
+  STUDENT
+}
+
 model User {
   id                 String    @id @default(uuid())
   email              String    @unique
@@ -16,6 +21,8 @@ model User {
   securityId         String    @unique
   admin              Boolean   @default(false)
   avatar             String?
+  usertype           Role      @default(STUDENT)
+  institutionname    String?
   refreshToken       String?
   failedLoginAttempts Int      @default(0)
   accountLocked      Boolean   @default(false)

@@ -31,6 +31,8 @@ interface USER {
     updatedAt?: Date;
     certificates?: any[];
 }
+
+
 class AuthController {
     public validateSignup = [
         body('email').isEmail().normalizeEmail().withMessage('Invalid email address'),
@@ -47,7 +49,40 @@ class AuthController {
         body('password').notEmpty().withMessage('Password is required')
     ];
 
-    public async signup(req: Request, res: Response): Promise<void> {
+     private setCookies = (res: Response, token: string, refreshToken: string, user: any) => {
+        console.log(res,token,refreshToken,user)
+        const isProduction = process.env.NODE_ENV === 'production';
+        
+        res.cookie('certify_token', token, {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: 'strict',
+            maxAge: 60 * 60 * 1000,
+            path: '/'
+        });
+
+        res.cookie('certify_refresh_token', refreshToken, {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: 'strict',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            path: '/'
+        });
+
+        res.cookie('certify_user', JSON.stringify({
+            id: user.id,
+            email: user.email,
+            username: user.username
+        }), {
+            httpOnly: false,
+            secure: isProduction,
+            sameSite: 'strict',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            path: '/'
+        });
+    }
+
+    public signup = async (req: Request, res: Response): Promise<void> => {
         try {
 
             const errors = validationResult(req);
@@ -149,6 +184,8 @@ class AuthController {
                     refreshToken : hashedRefreshToken
                 }
             })
+
+            this.setCookies(res, token, refreshToken, newUser);
             
             res.status(201).json({
                 message: 'User registered successfully',
@@ -166,7 +203,7 @@ class AuthController {
         }
     }
 
-    public async signin(req: Request, res: Response): Promise<void> {
+    public signin = async (req: Request, res: Response): Promise<void> => {
         try {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
@@ -266,6 +303,8 @@ class AuthController {
               where: { email },
               data: { refreshToken: hashedRefreshToken },
             });
+
+            this.setCookies(res, token, refreshToken, user);
             
             res.status(200).json({
                 message: 'Login successful',
@@ -283,7 +322,7 @@ class AuthController {
         }
     }
 
-    public async googleAuth(req: Request, res: Response): Promise<void> {
+    public googleAuth = async (req: Request, res: Response): Promise<void> => {
         try {
             const { idToken } = req.body;
             
@@ -376,6 +415,8 @@ class AuthController {
                 where: { email },
                 data: { refreshToken: hashedRefreshToken }
             });
+
+            this.setCookies(res, token, refreshToken, user);
             
             res.status(200).json({
                 message: 'Google authentication successful',
@@ -389,6 +430,19 @@ class AuthController {
             });
         } catch (error) {
             console.error('Google auth error:', error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    }
+
+     public logout = async (req: Request, res: Response): Promise<void> => {
+        try {
+            res.clearCookie('certify_token', { path: '/' });
+            res.clearCookie('certify_refresh_token', { path: '/' });
+            res.clearCookie('certify_user', { path: '/' });
+            
+            res.status(200).json({ message: 'Logged out successfully' });
+        } catch (error) {
+            console.error('Logout error:', error);
             res.status(500).json({ message: 'Internal server error' });
         }
     }

@@ -24,7 +24,6 @@ class UploadFilesToS3 {
                         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
                     } });
                 const file = req.file;
-                //   console.log(file);
                 if (!file) {
                     return res.status(400).json({ error: "No file uploaded" });
                 }
@@ -41,7 +40,6 @@ class UploadFilesToS3 {
                 }), {
                     expiresIn: 60
                 });
-                //   console.log(url);
                 const uploadResult = yield axios_1.default.put(url, file.buffer, {
                     headers: {
                         "Content-Type": file.mimetype,
@@ -62,7 +60,6 @@ class UploadFilesToS3 {
                 });
             }
             catch (err) {
-                //   console.error("Error uploading file:", err);
                 return res.status(500).json({ error: "Internal server error", details: err.message });
             }
         });

@@ -18,6 +18,11 @@ const uuid_1 = require("uuid");
 const express_validator_1 = require("express-validator");
 const prismadb_1 = __importDefault(require("../databases/prismadb"));
 const google_auth_library_1 = require("google-auth-library");
+var Role;
+(function (Role) {
+    Role["STUDENT"] = "STUDENT";
+    Role["INSTITUTION"] = "INSTITUTION";
+})(Role || (Role = {}));
 class AuthController {
     constructor() {
         this.validateSignup = [
@@ -33,16 +38,43 @@ class AuthController {
             (0, express_validator_1.body)('email').isEmail().normalizeEmail().withMessage('Invalid email address'),
             (0, express_validator_1.body)('password').notEmpty().withMessage('Password is required')
         ];
-    }
-    signup(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
+        this.setCookies = (res, token, refreshToken, user) => {
+            console.log(res, token, refreshToken, user);
+            const isProduction = process.env.NODE_ENV === 'production';
+            res.cookie('certify_token', token, {
+                httpOnly: true,
+                secure: isProduction,
+                sameSite: 'strict',
+                maxAge: 60 * 60 * 1000,
+                path: '/'
+            });
+            res.cookie('certify_refresh_token', refreshToken, {
+                httpOnly: true,
+                secure: isProduction,
+                sameSite: 'strict',
+                maxAge: 7 * 24 * 60 * 60 * 1000,
+                path: '/'
+            });
+            res.cookie('certify_user', JSON.stringify({
+                id: user.id,
+                email: user.email,
+                username: user.username
+            }), {
+                httpOnly: false,
+                secure: isProduction,
+                sameSite: 'strict',
+                maxAge: 7 * 24 * 60 * 60 * 1000,
+                path: '/'
+            });
+        };
+        this.signup = (req, res) => __awaiter(this, void 0, void 0, function* () {
             try {
                 const errors = (0, express_validator_1.validationResult)(req);
                 if (!errors.isEmpty()) {
                     res.status(400).json({ errors: errors.array() });
                     return;
                 }
-                const { email, password, username, fullName } = req.body;
+                const { email, password, username, firstname, lastname, usertype, institutionname } = req.body;
                 const existingUser = yield prismadb_1.default.user.findUnique({
                     where: {
                         email
@@ -61,21 +93,47 @@ class AuthController {
                     res.status(409).json({ message: 'Username already taken' });
                     return;
                 }
+                if (usertype == 'INSTITUTION' && institutionname == undefined) {
+                    res.status(409).json({
+                        message: "Please fill the institution name",
+                    });
+                    return;
+                }
+                const fullName = firstname + ' ' + lastname;
                 const saltRounds = 12;
                 const salt = yield bcryptjs_1.default.genSalt(saltRounds);
                 const hashedPassword = yield bcryptjs_1.default.hash(password, salt);
                 const securityId = (0, uuid_1.v4)();
-                const newUser = yield prismadb_1.default.user.create({
-                    data: {
-                        email,
-                        username,
-                        password: hashedPassword,
-                        fullName: fullName || "",
-                        securityId,
-                        failedLoginAttempts: 0,
-                        lastLogin: new Date(),
-                    },
-                });
+                let newUser = {};
+                if (usertype == "INSTITUTION") {
+                    newUser = (yield prismadb_1.default.user.create({
+                        data: {
+                            email,
+                            username,
+                            password: hashedPassword,
+                            fullName: fullName,
+                            securityId,
+                            failedLoginAttempts: 0,
+                            institutionname,
+                            usertype: Role.INSTITUTION,
+                            lastLogin: new Date(),
+                        },
+                    }));
+                }
+                else {
+                    newUser = (yield prismadb_1.default.user.create({
+                        data: {
+                            email,
+                            username,
+                            password: hashedPassword,
+                            fullName: fullName,
+                            securityId,
+                            failedLoginAttempts: 0,
+                            usertype: Role.STUDENT,
+                            lastLogin: new Date(),
+                        },
+                    }));
+                }
                 const token = jsonwebtoken_1.default.sign({
                     id: newUser.id,
                     email: newUser.email,
@@ -91,6 +149,7 @@ class AuthController {
                         refreshToken: hashedRefreshToken
                     }
                 });
+                this.setCookies(res, token, refreshToken, newUser);
                 res.status(201).json({
                     message: 'User registered successfully',
                     token,
@@ -107,9 +166,7 @@ class AuthController {
                 res.status(500).json({ message: 'Internal server error' });
             }
         });
-    }
-    signin(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
+        this.signin = (req, res) => __awaiter(this, void 0, void 0, function* () {
             try {
                 const errors = (0, express_validator_1.validationResult)(req);
                 if (!errors.isEmpty()) {
@@ -181,13 +238,14 @@ class AuthController {
                     id: user.id,
                     email: user.email,
                     securityId
-                }, process.env.JWT_SECRET || 'default_jwt_secret', { expiresIn: '1h' });
-                const refreshToken = jsonwebtoken_1.default.sign({ id: user.id, securityId }, process.env.REFRESH_TOKEN_SECRET || 'default_refresh_secret', { expiresIn: '7d' });
+                }, process.env.JWT_SECRET, { expiresIn: '1h' });
+                const refreshToken = jsonwebtoken_1.default.sign({ id: user.id, securityId }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '7d' });
                 const hashedRefreshToken = yield bcryptjs_1.default.hash(refreshToken, 10);
                 yield prismadb_1.default.user.update({
                     where: { email },
                     data: { refreshToken: hashedRefreshToken },
                 });
+                this.setCookies(res, token, refreshToken, user);
                 res.status(200).json({
                     message: 'Login successful',
                     token,
@@ -204,9 +262,7 @@ class AuthController {
                 res.status(500).json({ message: 'Internal server error' });
             }
         });
-    }
-    googleAuth(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
+        this.googleAuth = (req, res) => __awaiter(this, void 0, void 0, function* () {
             try {
                 const { idToken } = req.body;
                 if (!idToken) {
@@ -277,6 +333,7 @@ class AuthController {
                     where: { email },
                     data: { refreshToken: hashedRefreshToken }
                 });
+                this.setCookies(res, token, refreshToken, user);
                 res.status(200).json({
                     message: 'Google authentication successful',
                     token,
@@ -290,6 +347,18 @@ class AuthController {
             }
             catch (error) {
                 console.error('Google auth error:', error);
+                res.status(500).json({ message: 'Internal server error' });
+            }
+        });
+        this.logout = (req, res) => __awaiter(this, void 0, void 0, function* () {
+            try {
+                res.clearCookie('certify_token', { path: '/' });
+                res.clearCookie('certify_refresh_token', { path: '/' });
+                res.clearCookie('certify_user', { path: '/' });
+                res.status(200).json({ message: 'Logged out successfully' });
+            }
+            catch (error) {
+                console.error('Logout error:', error);
                 res.status(500).json({ message: 'Internal server error' });
             }
         });

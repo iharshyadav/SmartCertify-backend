@@ -123,12 +123,10 @@ class UserController {
                 return;
             }
 
-            // Get pagination parameters
             const page = parseInt(req.query.page as string) || 1;
             const limit = parseInt(req.query.limit as string) || 10;
             const skip = (page - 1) * limit;
 
-            // Get users with pagination
             const users = await prisma.user.findMany({
                 skip,
                 take: limit,
@@ -529,7 +527,6 @@ class UserController {
         try {
             const userId = req.params.id as string;
             
-            // User can only export their own data unless they're admin
             if (!req.user?.id) {
                 res.status(401).json({ success: false, message: 'Not authenticated' });
                 return;
@@ -551,7 +548,6 @@ class UserController {
                 where: { id: userId },
                 include: {
                     certificates: true,
-                    // Include other related data as needed
                 }
             });
 
@@ -560,7 +556,6 @@ class UserController {
                 return;
             }
 
-            // Remove sensitive information
             const { password, ...userDataToExport } = userData as any;
 
             res.status(200).json({

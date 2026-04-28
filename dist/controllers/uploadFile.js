@@ -8,61 +8,70 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-const client_s3_1 = require("@aws-sdk/client-s3");
-const axios_1 = __importDefault(require("axios"));
-const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
-class UploadFilesToS3 {
+exports.uploadBufferToCloudinary = uploadBufferToCloudinary;
+const cloudinary_1 = require("cloudinary");
+// Configure once at module load
+cloudinary_1.v2.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+/**
+ * Uploads a buffer to Cloudinary via upload_stream.
+ * Returns { secure_url, public_id }.
+ */
+function uploadBufferToCloudinary(buffer, folder = "smartcertify/certificates") {
+    return new Promise((resolve, reject) => {
+        const uploadStream = cloudinary_1.v2.uploader.upload_stream({ folder, resource_type: "auto" }, (error, result) => {
+            if (error || !result) {
+                return reject(error || new Error("Cloudinary upload failed"));
+            }
+            resolve({ secure_url: result.secure_url, public_id: result.public_id });
+        });
+        // Write buffer directly then end the stream
+        uploadStream.end(buffer);
+    });
+}
+class UploadFileController {
     singleUpload(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const client = new client_s3_1.S3Client({ region: process.env.AWS_REGION, credentials: {
-                        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-                        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-                    } });
                 const file = req.file;
+                console.log("[Upload] Request received:", {
+                    hasFile: !!file,
+                    fileName: file === null || file === void 0 ? void 0 : file.originalname,
+                    fileSize: file === null || file === void 0 ? void 0 : file.size,
+                    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+                });
                 if (!file) {
-                    return res.status(400).json({ error: "No file uploaded" });
+                    return res.status(400).json({ success: false, error: "No file uploaded" });
                 }
-                const MAX_FILE_SIZE = 100 * 1024 * 1024;
-                if (file.size > MAX_FILE_SIZE) {
-                    return res.status(400).json({ error: "File size exceeds the maximum limit of 100MB" });
+                if (!file.buffer || file.buffer.length === 0) {
+                    return res.status(400).json({ success: false, error: "File buffer is empty — check multer config" });
                 }
-                const timestamp = Date.now();
-                const key = `${file.originalname}-${timestamp}`;
-                const url = yield (0, s3_request_presigner_1.getSignedUrl)(client, new client_s3_1.PutObjectCommand({
-                    Bucket: process.env.AWS_BUCKET_NAME || "",
-                    Key: key,
-                    ContentType: file.mimetype,
-                }), {
-                    expiresIn: 60
-                });
-                const uploadResult = yield axios_1.default.put(url, file.buffer, {
-                    headers: {
-                        "Content-Type": file.mimetype,
-                        "Content-Length": file.size,
-                    },
-                    maxBodyLength: Infinity
-                });
-                if (uploadResult.status !== 200) {
-                    return res.status(500).json({ error: "Failed to upload file to S3" });
+                const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+                if (file.size > MAX_SIZE) {
+                    return res.status(400).json({ success: false, error: "File size exceeds 10MB limit" });
                 }
-                let fileUrl = `${process.env.AWS_CLOUDFRONT_DOMAIN}/${key}`;
-                if (fileUrl.includes(" ")) {
-                    fileUrl = fileUrl.replace(/ /g, "+");
-                }
+                console.log("[Upload] Uploading to Cloudinary...");
+                const { secure_url, public_id } = yield uploadBufferToCloudinary(file.buffer);
+                console.log("[Upload] SUCCESS:", secure_url);
                 return res.status(200).json({
                     success: true,
-                    fileUrl
+                    fileUrl: secure_url,
+                    cloudinaryId: public_id,
                 });
             }
             catch (err) {
-                return res.status(500).json({ error: "Internal server error", details: err.message });
+                console.error("[Upload] Cloudinary error:", (err === null || err === void 0 ? void 0 : err.message) || err);
+                return res.status(500).json({
+                    success: false,
+                    error: "Upload failed",
+                    details: (err === null || err === void 0 ? void 0 : err.message) || "Unknown error",
+                });
             }
         });
     }
 }
-exports.default = new UploadFilesToS3();
+exports.default = new UploadFileController();

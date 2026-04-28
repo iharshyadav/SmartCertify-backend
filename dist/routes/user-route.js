@@ -13,6 +13,7 @@ const router = (0, express_1.Router)();
 router.post("/signup", auth_controller_1.default.validateSignup, auth_controller_1.default.signup);
 router.post("/signin", auth_controller_1.default.validateSignin, auth_controller_1.default.signin);
 router.post("/googlesignin", auth_controller_1.default.googleAuth);
+router.post("/logout", auth_controller_1.default.logout);
 router.get("/getprofile", user_controller_1.default.getProfile);
 router.put("/updateprofile", user_controller_1.default.updateProfile);
 router.post("/uploadfile", multer_1.upload.single('file'), uploadFile_1.default.singleUpload);

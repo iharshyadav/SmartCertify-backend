@@ -6,10 +6,6 @@ import { body, validationResult } from 'express-validator';
 import prisma from "../databases/prismadb"
 import {OAuth2Client} from "google-auth-library"
 
-enum Role {
-    STUDENT = "STUDENT",
-    INSTITUTION = "INSTITUTION"
-}
 
 interface USER {
     id?: string;
@@ -20,8 +16,6 @@ interface USER {
     securityId?: string;
     admin?: boolean;
     avatar?: string | null;
-    usertype?: Role | null;
-    institutionname?: string | null;
     refreshToken?: string | null;
     failedLoginAttempts?: number;
     accountLocked?: boolean;
@@ -52,19 +46,21 @@ class AuthController {
      private setCookies = (res: Response, token: string, refreshToken: string, user: any) => {
         console.log(res,token,refreshToken,user)
         const isProduction = process.env.NODE_ENV === 'production';
+        const sameSite: 'lax' | 'none' = isProduction ? 'none' : 'lax';
+        const secure = isProduction;
         
         res.cookie('certify_token', token, {
             httpOnly: true,
-            secure: isProduction,
-            sameSite: 'strict',
+            secure,
+            sameSite,
             maxAge: 60 * 60 * 1000,
             path: '/'
         });
 
         res.cookie('certify_refresh_token', refreshToken, {
             httpOnly: true,
-            secure: isProduction,
-            sameSite: 'strict',
+            secure,
+            sameSite,
             maxAge: 7 * 24 * 60 * 60 * 1000,
             path: '/'
         });
@@ -75,8 +71,8 @@ class AuthController {
             username: user.username
         }), {
             httpOnly: false,
-            secure: isProduction,
-            sameSite: 'strict',
+            secure,
+            sameSite,
             maxAge: 7 * 24 * 60 * 60 * 1000,
             path: '/'
         });
@@ -91,73 +87,35 @@ class AuthController {
                 return;
             }
 
-            const { email, password, username, firstname , lastname , usertype , institutionname} = req.body;
+            const { email, password, username, firstname, lastname } = req.body;
             
-            const existingUser = await prisma.user.findUnique({
-                where : {
-                    email
-                }
-            });
-
+            const existingUser = await prisma.user.findUnique({ where: { email } });
             if (existingUser) {
-                res.status(409).json({ message: 'Email already in use' });
-                return;
+                res.status(409).json({ message: 'Email already in use' }); return;
             }
 
-            const existingUsername = await prisma.user.findUnique({
-                where : {
-                    username
-                }
-            });
+            const existingUsername = await prisma.user.findUnique({ where: { username } });
             if (existingUsername) {
-                res.status(409).json({ message: 'Username already taken' });
-                return;
+                res.status(409).json({ message: 'Username already taken' }); return;
             }
 
-            if(usertype == 'INSTITUTION' && institutionname == undefined){
-                res.status(409).json({
-                    message: "Please fill the institution name",
-                })
-
-                return;
-            }
-            const fullName = firstname + ' ' +  lastname;
+            const fullName = firstname + ' ' + lastname;
             const saltRounds = 12;
             const salt = await bcrypt.genSalt(saltRounds);
             const hashedPassword = await bcrypt.hash(password, salt);
-            
             const securityId = uuidv4();
 
-            let newUser: USER = {};
-
-            if (usertype == "INSTITUTION") {
-              newUser = (await prisma.user.create({
+            const newUser: USER = await prisma.user.create({
                 data: {
-                  email,
-                  username,
-                  password: hashedPassword,
-                  fullName: fullName,
-                  securityId,
-                  failedLoginAttempts: 0,
-                  institutionname,
-                  usertype: Role.INSTITUTION,
-                  lastLogin: new Date(),
+                    email,
+                    username,
+                    password: hashedPassword,
+                    fullName,
+                    securityId,
+                    failedLoginAttempts: 0,
+                    lastLogin: new Date(),
                 },
-              })) as USER;
-            } else {
-              newUser = (await prisma.user.create({
-                data: {
-                  email,
-                  username,
-                  password: hashedPassword,
-                  fullName: fullName,
-                  securityId,
-                  failedLoginAttempts: 0,
-                  usertype: Role.STUDENT,
-                  lastLogin: new Date(),
-                },
-              })) as USER;
-            }
+            }) as USER;
             
             const token = jwt.sign(
                 { 

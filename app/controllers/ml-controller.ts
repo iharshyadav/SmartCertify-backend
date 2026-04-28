@@ -1,5 +1,8 @@
 import { Request, Response } from "express";
 import axios from "axios";
+import jwt from "jsonwebtoken";
+import prisma from "../databases/prismadb";
+import { uploadBufferToCloudinary } from "./uploadFile";
 
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || "http://localhost:8000";
 const ML_API_KEY = process.env.ML_API_KEY || "smartcertify-dev-key";
@@ -13,11 +16,59 @@ const mlClient = axios.create({
     },
 });
 
+function getUserIdFromToken(req: Request): string | null {
+    const cookieToken = req.cookies?.certify_token || req.cookies?.jwt;
+    const authHeader = req.headers.authorization;
+    const bearerToken = typeof authHeader === "string" && authHeader.startsWith("Bearer ")
+        ? authHeader.slice(7)
+        : null;
+    const token = cookieToken || bearerToken;
+    if (!token || !process.env.JWT_SECRET) return null;
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as { id: string };
+        return decoded.id;
+    } catch {
+        return null;
+    }
+}
+
+async function saveAICertificateRecord(params: {
+    userId: string;
+    name: string;
+    imageUrl: string;
+    cloudinaryId?: string | null;
+}): Promise<void> {
+    const now = new Date();
+    await prisma.certificate.create({
+        data: {
+            name: params.name,
+            imageUrl: params.imageUrl,
+            cloudinaryId: params.cloudinaryId ?? null,
+            userId: params.userId,
+            issueDate: now,
+            createdAt: now,
+        },
+    });
+}
+
 class MLController {
 
     public async verifyCertificate(req: Request, res: Response): Promise<void> {
         try {
             const response = await mlClient.post("/verify", req.body);
+            const userId = getUserIdFromToken(req);
+            if (userId) {
+                const fallbackName = "AI Fraud Detection Result";
+                const certName = typeof req.body?.course_name === "string" && req.body.course_name.trim()
+                    ? `Fraud Check - ${req.body.course_name.trim()}`
+                    : fallbackName;
+                const dataUrl = "https://smartcertify.ai/fraud-detection";
+                await saveAICertificateRecord({
+                    userId,
+                    name: certName,
+                    imageUrl: dataUrl,
+                });
+            }
             res.status(200).json({ success: true, data: response.data });
         } catch (error: any) {
             console.error("ML verify error:", error?.response?.data || error.message);
@@ -57,6 +108,20 @@ class MLController {
     public async analyzeImage(req: Request, res: Response): Promise<void> {
         try {
             const response = await mlClient.post("/analyze-image", req.body);
+            const userId = getUserIdFromToken(req);
+            if (userId && typeof req.body?.image_base64 === "string" && req.body.image_base64.length > 0) {
+                const imageBuffer = Buffer.from(req.body.image_base64, "base64");
+                const { secure_url, public_id } = await uploadBufferToCloudinary(imageBuffer, "smartcertify/ai-analysis");
+                const fileName = typeof req.body?.certificate_id === "string" && req.body.certificate_id.trim()
+                    ? req.body.certificate_id.trim()
+                    : "Image";
+                await saveAICertificateRecord({
+                    userId,
+                    name: `Image Analysis - ${fileName}`,
+                    imageUrl: secure_url,
+                    cloudinaryId: public_id,
+                });
+            }
             res.status(200).json({ success: true, data: response.data });
         } catch (error: any) {
             console.error("ML image analysis error:", error?.response?.data || error.message);

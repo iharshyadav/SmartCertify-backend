@@ -9,7 +9,7 @@ import cookieParser from 'cookie-parser';
 
 
 const app = express();
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 8000;
 
 app.use(express.json({ limit: '50mb' }));
 app.use(cors({
@@ -18,9 +18,6 @@ app.use(cors({
 }))
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-// Serve static upload files
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 
 app.use("/api/users", userRouter);

@@ -13,6 +13,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const axios_1 = __importDefault(require("axios"));
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const prismadb_1 = __importDefault(require("../databases/prismadb"));
+const uploadFile_1 = require("./uploadFile");
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || "http://localhost:8000";
 const ML_API_KEY = process.env.ML_API_KEY || "smartcertify-dev-key";
 const mlClient = axios_1.default.create({
@@ -23,19 +26,66 @@ const mlClient = axios_1.default.create({
         "X-API-Key": ML_API_KEY,
     },
 });
+function getUserIdFromToken(req) {
+    var _a, _b;
+    const cookieToken = ((_a = req.cookies) === null || _a === void 0 ? void 0 : _a.certify_token) || ((_b = req.cookies) === null || _b === void 0 ? void 0 : _b.jwt);
+    const authHeader = req.headers.authorization;
+    const bearerToken = typeof authHeader === "string" && authHeader.startsWith("Bearer ")
+        ? authHeader.slice(7)
+        : null;
+    const token = cookieToken || bearerToken;
+    if (!token || !process.env.JWT_SECRET)
+        return null;
+    try {
+        const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET);
+        return decoded.id;
+    }
+    catch (_c) {
+        return null;
+    }
+}
+function saveAICertificateRecord(params) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        const now = new Date();
+        yield prismadb_1.default.certificate.create({
+            data: {
+                name: params.name,
+                imageUrl: params.imageUrl,
+                cloudinaryId: (_a = params.cloudinaryId) !== null && _a !== void 0 ? _a : null,
+                userId: params.userId,
+                issueDate: now,
+                createdAt: now,
+            },
+        });
+    });
+}
 class MLController {
     verifyCertificate(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c, _d;
+            var _a, _b, _c, _d, _e;
             try {
                 const response = yield mlClient.post("/verify", req.body);
+                const userId = getUserIdFromToken(req);
+                if (userId) {
+                    const fallbackName = "AI Fraud Detection Result";
+                    const certName = typeof ((_a = req.body) === null || _a === void 0 ? void 0 : _a.course_name) === "string" && req.body.course_name.trim()
+                        ? `Fraud Check - ${req.body.course_name.trim()}`
+                        : fallbackName;
+                    const dataUrl = "https://smartcertify.ai/fraud-detection";
+                    yield saveAICertificateRecord({
+                        userId,
+                        name: certName,
+                        imageUrl: dataUrl,
+                    });
+                }
                 res.status(200).json({ success: true, data: response.data });
             }
             catch (error) {
-                console.error("ML verify error:", ((_a = error === null || error === void 0 ? void 0 : error.response) === null || _a === void 0 ? void 0 : _a.data) || error.message);
-                res.status(((_b = error === null || error === void 0 ? void 0 : error.response) === null || _b === void 0 ? void 0 : _b.status) || 502).json({
+                console.error("ML verify error:", ((_b = error === null || error === void 0 ? void 0 : error.response) === null || _b === void 0 ? void 0 : _b.data) || error.message);
+                res.status(((_c = error === null || error === void 0 ? void 0 : error.response) === null || _c === void 0 ? void 0 : _c.status) || 502).json({
                     success: false,
-                    message: ((_d = (_c = error === null || error === void 0 ? void 0 : error.response) === null || _c === void 0 ? void 0 : _c.data) === null || _d === void 0 ? void 0 : _d.detail) || "ML service unavailable",
+                    message: ((_e = (_d = error === null || error === void 0 ? void 0 : error.response) === null || _d === void 0 ? void 0 : _d.data) === null || _e === void 0 ? void 0 : _e.detail) || "ML service unavailable",
                 });
             }
         });
@@ -74,16 +124,30 @@ class MLController {
     }
     analyzeImage(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c, _d;
+            var _a, _b, _c, _d, _e, _f;
             try {
                 const response = yield mlClient.post("/analyze-image", req.body);
+                const userId = getUserIdFromToken(req);
+                if (userId && typeof ((_a = req.body) === null || _a === void 0 ? void 0 : _a.image_base64) === "string" && req.body.image_base64.length > 0) {
+                    const imageBuffer = Buffer.from(req.body.image_base64, "base64");
+                    const { secure_url, public_id } = yield (0, uploadFile_1.uploadBufferToCloudinary)(imageBuffer, "smartcertify/ai-analysis");
+                    const fileName = typeof ((_b = req.body) === null || _b === void 0 ? void 0 : _b.certificate_id) === "string" && req.body.certificate_id.trim()
+                        ? req.body.certificate_id.trim()
+                        : "Image";
+                    yield saveAICertificateRecord({
+                        userId,
+                        name: `Image Analysis - ${fileName}`,
+                        imageUrl: secure_url,
+                        cloudinaryId: public_id,
+                    });
+                }
                 res.status(200).json({ success: true, data: response.data });
             }
             catch (error) {
-                console.error("ML image analysis error:", ((_a = error === null || error === void 0 ? void 0 : error.response) === null || _a === void 0 ? void 0 : _a.data) || error.message);
-                res.status(((_b = error === null || error === void 0 ? void 0 : error.response) === null || _b === void 0 ? void 0 : _b.status) || 502).json({
+                console.error("ML image analysis error:", ((_c = error === null || error === void 0 ? void 0 : error.response) === null || _c === void 0 ? void 0 : _c.data) || error.message);
+                res.status(((_d = error === null || error === void 0 ? void 0 : error.response) === null || _d === void 0 ? void 0 : _d.status) || 502).json({
                     success: false,
-                    message: ((_d = (_c = error === null || error === void 0 ? void 0 : error.response) === null || _c === void 0 ? void 0 : _c.data) === null || _d === void 0 ? void 0 : _d.detail) || "ML service unavailable",
+                    message: ((_f = (_e = error === null || error === void 0 ? void 0 : error.response) === null || _e === void 0 ? void 0 : _e.data) === null || _f === void 0 ? void 0 : _f.detail) || "ML service unavailable",
                 });
             }
         });

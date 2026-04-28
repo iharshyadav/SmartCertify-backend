@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import type { Request, Response as ExpressResponse } from "express";
 import OpenAI from "openai";
 import Groq from "groq-sdk";
 
@@ -8,7 +8,7 @@ const openai = new OpenAI({
 
 export const generateAIResponses = async (
   req: Request,
-  res: Response
+  res: ExpressResponse
 ): Promise<void> => {
   try {
     // const { input } = req.body;

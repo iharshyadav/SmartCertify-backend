@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import type { Request, Response as ExpressResponse } from "express";
 import prisma from "../databases/prismadb"
 import bcrypt from "bcryptjs"
 
@@ -10,7 +10,7 @@ interface AuthenticatedRequest extends Request {
 
 class UserController {
 
-    public async getProfile(req: AuthenticatedRequest, res: Response): Promise<void> {
+    public async getProfile(req: AuthenticatedRequest, res: ExpressResponse): Promise<void> {
         try {
             const userId = (req.query.id as string) || req.user?.id;
 
@@ -45,7 +45,7 @@ class UserController {
         }
     }
 
-    public async updateProfile(req: AuthenticatedRequest, res: Response): Promise<void> {
+    public async updateProfile(req: AuthenticatedRequest, res: ExpressResponse): Promise<void> {
         try {
 
            const userId = (req.query.id as string) || req.user?.id;
@@ -106,7 +106,7 @@ class UserController {
 
     // Admin functions
 
-    public async getAllUsers(req: AuthenticatedRequest, res: Response): Promise<void> {
+    public async getAllUsers(req: AuthenticatedRequest, res: ExpressResponse): Promise<void> {
         try {
             if (!req.user?.id) {
                 res.status(401).json({ success: false, message: 'Not authenticated' });
@@ -151,7 +151,7 @@ class UserController {
         }
     }
 
-    public async createUser(req: AuthenticatedRequest, res: Response): Promise<void> {
+    public async createUser(req: AuthenticatedRequest, res: ExpressResponse): Promise<void> {
         try {
             if (!req.user?.id) {
                 res.status(401).json({ success: false, message: 'Not authenticated' });
@@ -216,7 +216,7 @@ class UserController {
         }
     }
 
-    public async deleteUser(req: AuthenticatedRequest, res: Response): Promise<void> {
+    public async deleteUser(req: AuthenticatedRequest, res: ExpressResponse): Promise<void> {
         try {
             // Admin check
             if (!req.user?.id) {
@@ -264,7 +264,7 @@ class UserController {
         }
     }
 
-    public async toggleAdminStatus(req: AuthenticatedRequest, res: Response): Promise<void> {
+    public async toggleAdminStatus(req: AuthenticatedRequest, res: ExpressResponse): Promise<void> {
         try {
             if (!req.user?.id) {
                 res.status(401).json({ success: false, message: 'Not authenticated' });
@@ -305,7 +305,7 @@ class UserController {
         }
     }
 
-    public async toggleAccountLock(req: AuthenticatedRequest, res: Response): Promise<void> {
+    public async toggleAccountLock(req: AuthenticatedRequest, res: ExpressResponse): Promise<void> {
         try {
             // Admin check
             if (!req.user?.id) {
@@ -356,7 +356,7 @@ class UserController {
         }
     }
 
-    public async getUserStats(req: AuthenticatedRequest, res: Response): Promise<void> {
+    public async getUserStats(req: AuthenticatedRequest, res: ExpressResponse): Promise<void> {
         try {
             if (!req.user?.id) {
                 res.status(401).json({ success: false, message: 'Not authenticated' });
@@ -407,7 +407,7 @@ class UserController {
         }
     }
 
-    public async resetPassword(req: AuthenticatedRequest, res: Response): Promise<void> {
+    public async resetPassword(req: AuthenticatedRequest, res: ExpressResponse): Promise<void> {
         try {
             // Check if admin or the user themself
             if (!req.user?.id) {
@@ -457,7 +457,7 @@ class UserController {
         }
     }
 
-    public async searchUsers(req: AuthenticatedRequest, res: Response): Promise<void> {
+    public async searchUsers(req: AuthenticatedRequest, res: ExpressResponse): Promise<void> {
         try {
             if (!req.user?.id) {
                 res.status(401).json({ success: false, message: 'Not authenticated' });
@@ -523,7 +523,7 @@ class UserController {
         }
     }
 
-    public async exportUserData(req: AuthenticatedRequest, res: Response): Promise<void> {
+    public async exportUserData(req: AuthenticatedRequest, res: ExpressResponse): Promise<void> {
         try {
             const userId = req.params.id as string;
             

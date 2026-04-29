@@ -1,8 +1,9 @@
-import { Request, Response } from "express";
 import prisma from "../databases/prismadb";
 import jwt from "jsonwebtoken";
 import { v2 as cloudinary } from "cloudinary";
 import { uploadBufferToCloudinary } from "./uploadFile";
+
+type Response = any;
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -10,10 +11,11 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-interface AuthenticatedRequest extends Request {
-    user?: { id: string; }
-    file?: Express.Multer.File;
-}
+type AuthenticatedRequest = {
+    user?: { id: string };
+    file?: any;
+    [key: string]: any;
+};
 
 function getUserIdFromToken(req: AuthenticatedRequest): string | null {
     const cookieToken = req.cookies?.certify_token || req.cookies?.jwt;

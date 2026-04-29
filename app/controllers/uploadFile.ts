@@ -1,4 +1,5 @@
-import { Request, Response } from "express";
+type Request = any;
+type Response = any;
 import { v2 as cloudinary } from "cloudinary";
 
 // Configure once at module load

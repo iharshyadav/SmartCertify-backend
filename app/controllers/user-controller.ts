@@ -1,12 +1,14 @@
-import type { Request, Response as ExpressResponse } from "express";
+type Request = any;
+type ExpressResponse = any;
 import prisma from "../databases/prismadb"
 import bcrypt from "bcryptjs"
 
-interface AuthenticatedRequest extends Request {
+type AuthenticatedRequest = {
     user?: {
         id: string;
-    }
-}
+    };
+    [key: string]: any;
+};
 
 class UserController {
 

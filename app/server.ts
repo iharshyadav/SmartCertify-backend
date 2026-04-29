@@ -1,6 +1,5 @@
 import 'dotenv/config';
-import express, { Request, Response, NextFunction } from 'express';
-import path from 'path';
+import express from 'express';
 import userRouter from "./routes/user-route";
 import mlRouter from "./routes/ml-route";
 import certificateRouter from "./routes/certificate-route";
@@ -23,11 +22,13 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use("/api/users", userRouter);
 app.use("/api/ml", mlRouter);
 app.use("/api/certificates", certificateRouter);
-app.get('/', (req: Request, res: Response) => {
+app.get('/', (_req: any, res: any) => {
     res.send('Hello, world!');
 });
-app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
-});
+if (process.env.VERCEL !== "1") {
+    app.listen(port, () => {
+        console.log(`Server is running on port ${port}`);
+    });
+}
 
 export default app;

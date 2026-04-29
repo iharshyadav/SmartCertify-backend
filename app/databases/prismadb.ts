@@ -1,10 +1,12 @@
-import { PrismaClient } from "@prisma/client";
+import pkg from "@prisma/client";
+
+const PrismaClient = (pkg as any).PrismaClient;
 
 declare global {
-  var prisma: PrismaClient | undefined;
+  var prisma: any;
 }
 
-let prisma: PrismaClient;
+let prisma: any;
 if (process.env.NODE_ENV === "production") {
   prisma = new PrismaClient();
 } else {

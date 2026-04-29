@@ -22,10 +22,12 @@ app.use(express_1.default.urlencoded({ extended: true, limit: '50mb' }));
 app.use("/api/users", user_route_1.default);
 app.use("/api/ml", ml_route_1.default);
 app.use("/api/certificates", certificate_route_1.default);
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
     res.send('Hello, world!');
 });
-app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
-});
+if (process.env.VERCEL !== "1") {
+    app.listen(port, () => {
+        console.log(`Server is running on port ${port}`);
+    });
+}
 exports.default = app;

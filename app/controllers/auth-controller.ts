@@ -1,4 +1,5 @@
-import { Request, Response } from 'express';
+type Request = any;
+type Response = any;
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';

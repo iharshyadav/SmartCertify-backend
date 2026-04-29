@@ -1,8 +1,10 @@
-import { Request, Response } from "express";
 import axios from "axios";
 import jwt from "jsonwebtoken";
 import prisma from "../databases/prismadb";
 import { uploadBufferToCloudinary } from "./uploadFile";
+
+type Request = any;
+type Response = any;
 
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || "http://localhost:8000";
 const ML_API_KEY = process.env.ML_API_KEY || "smartcertify-dev-key";

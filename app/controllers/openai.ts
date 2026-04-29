@@ -1,4 +1,5 @@
-import type { Request, Response as ExpressResponse } from "express";
+type Request = any;
+type ExpressResponse = any;
 import OpenAI from "openai";
 import Groq from "groq-sdk";
 

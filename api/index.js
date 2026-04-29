@@ -1,2 +1,3 @@
 process.env.VERCEL = process.env.VERCEL || "1";
-module.exports = require("../dist/server.js");
+const serverModule = require("../dist/server.js");
+module.exports = serverModule.default || serverModule;
